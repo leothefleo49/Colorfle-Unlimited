@@ -41,6 +41,7 @@ const rgbToHex = (r, g, b) => {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 };
 
+// Weighted square-root RGB blending for accurate color synthesis
 const blendColorsWeighted = (recipe, weights) => {
   if (!recipe || recipe.length === 0) return '#2B2D42';
   let sumR2 = 0, sumG2 = 0, sumB2 = 0;
@@ -433,7 +434,7 @@ export default function App() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    const particles = Array.from({ length: 80 }, () => ({
+    const particles = Array.from({ length: 90 }, () => ({
       x: canvas.width / 2,
       y: canvas.height / 2,
       vx: (Math.random() - 0.5) * 16,
@@ -555,11 +556,12 @@ export default function App() {
         </div>
       )}
 
-      <header className="w-full max-w-md px-4 py-2.5 flex items-center justify-between border-b border-slate-800/80 bg-[#12131C]/90 backdrop-blur-md sticky top-0 z-30">
-        <div className="flex items-center gap-1.5">
+      {/* HEADER */}
+      <header className="w-full max-w-5xl px-4 py-3 flex items-center justify-between border-b border-slate-800/80 bg-[#12131C]/90 backdrop-blur-md sticky top-0 z-30">
+        <div className="flex items-center gap-2">
           <button 
             onClick={() => setShowHowToPlay(true)}
-            className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
+            className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition shadow-sm"
             title="How to play"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -569,7 +571,7 @@ export default function App() {
           
           <button 
             onClick={() => setSoundEnabled(!soundEnabled)}
-            className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
+            className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition shadow-sm"
             title="Toggle Sound"
           >
             {soundEnabled ? (
@@ -586,20 +588,20 @@ export default function App() {
         </div>
 
         <div className="text-center">
-          <h1 className="text-2xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-slate-100 via-purple-300 to-slate-200">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-wider bg-clip-text text-transparent bg-gradient-to-r from-slate-100 via-purple-300 to-slate-200">
             Colorfle
           </h1>
-          <div className="text-[10px] font-bold tracking-widest text-slate-400 uppercase flex items-center justify-center gap-1">
+          <div className="text-[10px] sm:text-xs font-bold tracking-widest text-slate-400 uppercase flex items-center justify-center gap-1.5">
             <span className="text-purple-400">{splitMode === 'even' ? 'EVEN SPLIT' : 'UNEVEN'}</span>
             <span>•</span>
             <span>{colorCount} COLORS</span>
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2">
           <button 
             onClick={() => setShowStats(true)}
-            className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
+            className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition shadow-sm"
             title="Statistics"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -609,7 +611,7 @@ export default function App() {
 
           <button 
             onClick={() => setShowSettings(true)}
-            className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
+            className="w-9 h-9 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition shadow-sm"
             title="Settings"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -620,12 +622,15 @@ export default function App() {
         </div>
       </header>
 
-      <main className="w-full max-w-md px-4 flex-1 flex flex-col items-center justify-start gap-3 mt-2">
+      {}
+      <main className="w-full max-w-5xl px-4 flex-1 flex flex-col md:flex-row items-center md:items-stretch justify-center md:justify-between gap-6 my-3">
         
-        <div className="flex flex-col items-center gap-1">
+        {/* LEFT PANEL: Responsive Pie Wheel Display */}
+        <div className="w-full md:w-5/12 flex flex-col items-center justify-center p-5 bg-slate-900/40 rounded-3xl border border-slate-800/80 shadow-2xl backdrop-blur-xs gap-3">
+          
           <div 
-            className={`w-48 h-48 sm:w-56 sm:h-56 rounded-full border-4 border-slate-700/80 shadow-2xl relative overflow-hidden transition-all duration-700 transform ${
-              isSpinningWin ? 'rotate-[720deg] scale-110 border-emerald-400 shadow-[0_0_30px_rgba(52,211,153,0.6)]' : ''
+            className={`w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 rounded-full border-4 border-slate-700/80 shadow-2xl relative overflow-hidden transition-all duration-700 transform ${
+              isSpinningWin ? 'rotate-[720deg] scale-110 border-emerald-400 shadow-[0_0_35px_rgba(52,211,153,0.7)]' : ''
             }`}
           >
             {gameStatus === 'won' ? (
@@ -658,13 +663,13 @@ export default function App() {
             )}
 
             {gameStatus !== 'playing' && !isSpinningWin && (
-              <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center p-2">
-                <span className="text-[11px] font-bold text-slate-300 uppercase">Target Mix</span>
-                <div className="flex gap-1 justify-center mt-1.5">
+              <div className="absolute inset-0 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center p-3">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider">Target Mix</span>
+                <div className="flex gap-1.5 justify-center mt-2">
                   {targetRecipe.map((id, i) => (
                     <div 
                       key={i} 
-                      className="w-6 h-6 rounded-md border border-white/40 shadow-sm flex items-center justify-center text-[9px] font-bold text-white"
+                      className="w-7 h-7 rounded-lg border border-white/40 shadow-sm flex items-center justify-center text-[10px] font-bold text-white"
                       style={{ backgroundColor: PALETTE_MAP[id]?.hex }}
                       title={`${PALETTE_MAP[id]?.name} (${Math.round(targetWeights[i] * 100)}%)`}
                     >
@@ -676,207 +681,220 @@ export default function App() {
             )}
           </div>
 
-          <div className="text-[11px] font-semibold text-slate-400 flex items-center gap-3 mt-1">
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-600 inline-block" /> Your Guess (Left)
+          <div className="text-xs font-semibold text-slate-400 flex items-center gap-4 mt-1">
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-slate-600 inline-block shadow-xs" /> Your Guess (Left)
             </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block" /> Target Mix (Right)
+            <span className="flex items-center gap-1.5">
+              <span className="w-3 h-3 rounded-full bg-purple-500 inline-block shadow-xs" /> Target Mix (Right)
             </span>
           </div>
         </div>
 
-        <div className={`w-full flex flex-col gap-1.5 my-1 max-h-[220px] overflow-y-auto pr-1 custom-scrollbar ${maxAttempts > 8 ? 'pr-2' : ''}`}>
-          {Array.from({ length: maxAttempts }).map((_, rowIndex) => {
-            const guess = guesses[rowIndex];
-            const isCurrentRow = rowIndex === guesses.length && gameStatus === 'playing';
+        {}
+        {/* RIGHT PANEL: Guess Grid & Keyboard Workspace */}
+        <div className="w-full md:w-7/12 flex flex-col justify-between gap-4 max-w-md md:max-w-none">
+          
+          {/* Guess Rows Scrollable Grid */}
+          <div className={`w-full flex flex-col gap-2 max-h-[280px] md:max-h-[340px] overflow-y-auto pr-1 custom-scrollbar ${maxAttempts > 8 ? 'pr-2' : ''}`}>
+            {Array.from({ length: maxAttempts }).map((_, rowIndex) => {
+              const guess = guesses[rowIndex];
+              const isCurrentRow = rowIndex === guesses.length && gameStatus === 'playing';
 
-            const guessMixedHex = guess ? blendColorsWeighted(guess.recipe, targetWeights) : null;
-            const badgeTextColor = guessMixedHex ? getContrastTextColor(guessMixedHex) : 'text-slate-600';
-
-            return (
-              <div 
-                key={rowIndex} 
-                className={`flex items-center justify-between gap-2 p-1.5 rounded-xl border transition-all ${
-                  isCurrentRow ? 'bg-slate-800/60 border-purple-500/70 shadow-md' : 'bg-slate-900/40 border-slate-800/60'
-                } ${isCurrentRow && shakeRow ? 'animate-shake' : ''}`}
-              >
-                <div className="flex flex-1 items-center justify-center gap-1.5 sm:gap-2">
-                  {Array.from({ length: colorCount }).map((_, colIndex) => {
-                    let tileColor = null;
-                    let tileStatus = null;
-
-                    if (guess) {
-                      tileColor = PALETTE_MAP[guess.recipe[colIndex]];
-                      tileStatus = guess.statuses[colIndex];
-                    } else if (isCurrentRow && currentGuess[colIndex]) {
-                      tileColor = PALETTE_MAP[currentGuess[colIndex]];
-                    }
-
-                    let borderStyle = 'border-slate-700/80 bg-slate-800/40';
-                    if (wordleMode && tileStatus === 'correct') {
-                      if (colorblindMode === 'high_contrast') {
-                        borderStyle = 'border-blue-500 border-4 shadow-[0_0_12px_rgba(59,130,246,0.8)]';
-                      } else {
-                        borderStyle = 'border-emerald-500 border-4 shadow-[0_0_12px_rgba(16,185,129,0.8)]';
-                      }
-                    } else if (wordleMode && tileStatus === 'present') {
-                      if (colorblindMode === 'high_contrast') {
-                        borderStyle = 'border-orange-500 border-4 shadow-[0_0_12px_rgba(249,115,22,0.8)]';
-                      } else {
-                        borderStyle = 'border-amber-400 border-4 shadow-[0_0_12px_rgba(251,191,36,0.8)]';
-                      }
-                    } else if (wordleMode && tileStatus === 'absent') {
-                      borderStyle = 'border-slate-800';
-                    }
-
-                    return (
-                      <div
-                        key={colIndex}
-                        onClick={() => {
-                          if (isCurrentRow && colIndex < currentGuess.length) {
-                            const newG = [...currentGuess];
-                            newG.splice(colIndex, 1);
-                            setCurrentGuess(newG);
-                            playSoundEffect('delete', soundEnabled);
-                          }
-                        }}
-                        className={`w-9 h-9 sm:w-11 sm:h-11 rounded-lg flex items-center justify-center relative transition-all duration-200 transform ${borderStyle} ${
-                          isCurrentRow && currentGuess[colIndex] ? 'cursor-pointer hover:scale-105 active:scale-95' : ''
-                        }`}
-                        style={{ backgroundColor: tileColor ? tileColor.hex : undefined }}
-                        title={tileColor ? tileColor.name : `Slot ${colIndex + 1}`}
-                      >
-                        {!tileColor && (
-                          <span className="text-slate-600 font-bold text-xs">{colIndex + 1}</span>
-                        )}
-
-                        {wordleMode && colorblindMode === 'symbols' && tileStatus && (
-                          <span className={`text-xs font-black drop-shadow ${tileStatus === 'correct' ? 'text-emerald-300' : tileStatus === 'present' ? 'text-amber-300' : 'text-slate-400'}`}>
-                            {tileStatus === 'correct' ? '✓' : tileStatus === 'present' ? '⟳' : '✕'}
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="w-14 flex items-center justify-end">
-                  {guess ? (
-                    <div 
-                      className={`w-11 h-11 rounded-full text-[11px] flex items-center justify-center transition-all shadow-lg border-2 border-slate-700/80 ${badgeTextColor}`}
-                      style={{ backgroundColor: guessMixedHex }}
-                      title={`Guess Mix: ${guess.accuracy.toFixed(1)}%`}
-                    >
-                      {guess.accuracy.toFixed(1)}%
-                    </div>
-                  ) : (
-                    <div className="w-11 h-11 rounded-full bg-slate-800/50 border border-slate-800 flex items-center justify-center text-slate-600 text-xs font-bold">
-                      ?
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {gameStatus !== 'playing' && (
-          <div className="w-full p-3 rounded-xl bg-slate-900 border border-purple-500/40 flex flex-col items-center gap-2 shadow-xl animate-fade-in">
-            <h2 className="text-base font-bold text-center">
-              {gameStatus === 'won' ? (
-                <span className="text-emerald-400 flex items-center gap-1.5">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                  </svg>
-                  Solved! 100% Match!
-                </span>
-              ) : (
-                <span className="text-rose-400">Out of Attempts!</span>
-              )}
-            </h2>
-            <button
-              onClick={startNewGame}
-              className="px-6 py-2 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-bold text-xs shadow-lg transition transform hover:scale-105 active:scale-95 flex items-center gap-1.5"
-            >
-              <span>Play Next Game</span>
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-              </svg>
-            </button>
-          </div>
-        )}
-
-        <div className="w-full flex flex-col gap-1.5 mt-auto">
-          <div className="grid grid-cols-7 gap-1.5 bg-slate-900/90 p-2 rounded-2xl border border-slate-800 shadow-inner">
-            {PALETTE.map((color) => {
-              const status = wordleMode ? keyboardStatuses[color.id] : null;
-              const isAbsent = status === 'absent';
-
-              let badgeStyle = '';
-              if (wordleMode && status === 'correct') {
-                badgeStyle = colorblindMode === 'high_contrast' 
-                  ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-slate-900'
-                  : 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-900';
-              } else if (wordleMode && status === 'present') {
-                badgeStyle = colorblindMode === 'high_contrast'
-                  ? 'ring-2 ring-orange-400 ring-offset-2 ring-offset-slate-900'
-                  : 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-900';
-              }
+              const guessMixedHex = guess ? blendColorsWeighted(guess.recipe, targetWeights) : null;
+              const badgeTextColor = guessMixedHex ? getContrastTextColor(guessMixedHex) : 'text-slate-600';
 
               return (
-                <button
-                  key={color.id}
-                  disabled={gameStatus !== 'playing' || isAbsent}
-                  onClick={() => handleSelectColor(color.id)}
-                  className={`h-9 sm:h-10 rounded-lg flex items-center justify-center relative overflow-hidden transition-all duration-150 transform active:scale-90 shadow-sm ${
-                    isAbsent ? 'cursor-not-allowed opacity-80' : 'hover:scale-105'
-                  } ${badgeStyle}`}
-                  style={{ backgroundColor: color.hex }}
-                  title={color.name}
+                <div 
+                  key={rowIndex} 
+                  className={`flex items-center justify-between gap-2 p-2 rounded-2xl border transition-all ${
+                    isCurrentRow ? 'bg-slate-800/70 border-purple-500/80 shadow-lg' : 'bg-slate-900/40 border-slate-800/60'
+                  } ${isCurrentRow && shakeRow ? 'animate-shake' : ''}`}
                 >
-                  {isAbsent && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="w-full h-1 bg-red-600/90 rotate-45 transform shadow-sm" />
-                    </div>
-                  )}
-                </button>
+                  <div className="flex flex-1 items-center justify-center gap-2">
+                    {Array.from({ length: colorCount }).map((_, colIndex) => {
+                      let tileColor = null;
+                      let tileStatus = null;
+
+                      if (guess) {
+                        tileColor = PALETTE_MAP[guess.recipe[colIndex]];
+                        tileStatus = guess.statuses[colIndex];
+                      } else if (isCurrentRow && currentGuess[colIndex]) {
+                        tileColor = PALETTE_MAP[currentGuess[colIndex]];
+                      }
+
+                      let borderStyle = 'border-slate-700/80 bg-slate-800/40';
+                      if (wordleMode && tileStatus === 'correct') {
+                        if (colorblindMode === 'high_contrast') {
+                          borderStyle = 'border-blue-500 border-4 shadow-[0_0_12px_rgba(59,130,246,0.8)]';
+                        } else {
+                          borderStyle = 'border-emerald-500 border-4 shadow-[0_0_12px_rgba(16,185,129,0.8)]';
+                        }
+                      } else if (wordleMode && tileStatus === 'present') {
+                        if (colorblindMode === 'high_contrast') {
+                          borderStyle = 'border-orange-500 border-4 shadow-[0_0_12px_rgba(249,115,22,0.8)]';
+                        } else {
+                          borderStyle = 'border-amber-400 border-4 shadow-[0_0_12px_rgba(251,191,36,0.8)]';
+                        }
+                      } else if (wordleMode && tileStatus === 'absent') {
+                        borderStyle = 'border-slate-800';
+                      }
+
+                      return (
+                        <div
+                          key={colIndex}
+                          onClick={() => {
+                            if (isCurrentRow && colIndex < currentGuess.length) {
+                              const newG = [...currentGuess];
+                              newG.splice(colIndex, 1);
+                              setCurrentGuess(newG);
+                              playSoundEffect('delete', soundEnabled);
+                            }
+                          }}
+                          className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center relative transition-all duration-200 transform ${borderStyle} ${
+                            isCurrentRow && currentGuess[colIndex] ? 'cursor-pointer hover:scale-105 active:scale-95' : ''
+                          }`}
+                          style={{ backgroundColor: tileColor ? tileColor.hex : undefined }}
+                          title={tileColor ? tileColor.name : `Slot ${colIndex + 1}`}
+                        >
+                          {!tileColor && (
+                            <span className="text-slate-600 font-bold text-xs">{colIndex + 1}</span>
+                          )}
+
+                          {wordleMode && colorblindMode === 'symbols' && tileStatus && (
+                            <span className={`text-xs font-black drop-shadow ${tileStatus === 'correct' ? 'text-emerald-300' : tileStatus === 'present' ? 'text-amber-300' : 'text-slate-400'}`}>
+                              {tileStatus === 'correct' ? '✓' : tileStatus === 'present' ? '⟳' : '✕'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="w-16 flex items-center justify-end">
+                    {guess ? (
+                      <div 
+                        className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full text-xs flex items-center justify-center transition-all shadow-lg border-2 border-slate-700/80 ${badgeTextColor}`}
+                        style={{ backgroundColor: guessMixedHex }}
+                        title={`Guess Mix: ${guess.accuracy.toFixed(1)}%`}
+                      >
+                        {guess.accuracy.toFixed(1)}%
+                      </div>
+                    ) : (
+                      <div className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-slate-800/50 border border-slate-800 flex items-center justify-center text-slate-600 text-xs font-bold">
+                        ?
+                      </div>
+                    )}
+                  </div>
+                </div>
               );
             })}
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              onClick={handleClear}
-              disabled={gameStatus !== 'playing' || currentGuess.length === 0}
-              className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition disabled:opacity-40"
-            >
-              Clear
-            </button>
+          {}
+          {/* Game Over Banner */}
+          {gameStatus !== 'playing' && (
+            <div className="w-full p-4 rounded-2xl bg-slate-900 border border-purple-500/40 flex flex-col items-center gap-2 shadow-xl animate-fade-in">
+              <h2 className="text-base font-bold text-center">
+                {gameStatus === 'won' ? (
+                  <span className="text-emerald-400 flex items-center gap-2 text-lg">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Solved! 100% Match!
+                  </span>
+                ) : (
+                  <span className="text-rose-400 text-lg">Out of Attempts!</span>
+                )}
+              </h2>
+              <button
+                onClick={startNewGame}
+                className="px-8 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-fuchsia-600 hover:from-purple-500 hover:to-fuchsia-500 text-white font-bold text-xs shadow-lg transition transform hover:scale-105 active:scale-95 flex items-center gap-2"
+              >
+                <span>Play Next Game</span>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                </svg>
+              </button>
+            </div>
+          )}
 
-            <button
-              onClick={handleBackspace}
-              disabled={gameStatus !== 'playing' || currentGuess.length === 0}
-              className="py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 font-bold text-xs transition disabled:opacity-40 flex items-center justify-center gap-1"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-9.172a2 2 0 00-1.414.586L3 12z" />
-              </svg>
-              <span>Delete</span>
-            </button>
+          {/* Color Swatch Keyboard */}
+          <div className="w-full flex flex-col gap-2">
+            <div className="grid grid-cols-7 sm:grid-cols-10 gap-1.5 sm:gap-2 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 shadow-inner">
+              {PALETTE.map((color) => {
+                const status = wordleMode ? keyboardStatuses[color.id] : null;
+                const isAbsent = status === 'absent';
 
-            <button
-              onClick={handleSubmit}
-              disabled={gameStatus !== 'playing' || currentGuess.length < colorCount}
-              className="py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md transition active:scale-95 disabled:opacity-40"
-            >
-              ENTER
-            </button>
+                let badgeStyle = '';
+                if (wordleMode && status === 'correct') {
+                  badgeStyle = colorblindMode === 'high_contrast' 
+                    ? 'ring-2 ring-blue-400 ring-offset-2 ring-offset-slate-900'
+                    : 'ring-2 ring-emerald-400 ring-offset-2 ring-offset-slate-900';
+                } else if (wordleMode && status === 'present') {
+                  badgeStyle = colorblindMode === 'high_contrast'
+                    ? 'ring-2 ring-orange-400 ring-offset-2 ring-offset-slate-900'
+                    : 'ring-2 ring-amber-400 ring-offset-2 ring-offset-slate-900';
+                }
+
+                return (
+                  <button
+                    key={color.id}
+                    disabled={gameStatus !== 'playing' || isAbsent}
+                    onClick={() => handleSelectColor(color.id)}
+                    className={`h-10 sm:h-11 rounded-xl flex items-center justify-center relative overflow-hidden transition-all duration-150 transform active:scale-90 shadow-sm ${
+                      isAbsent ? 'cursor-not-allowed opacity-80' : 'hover:scale-105'
+                    } ${badgeStyle}`}
+                    style={{ backgroundColor: color.hex }}
+                    title={color.name}
+                  >
+                    {isAbsent && (
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="w-full h-1 bg-red-600/90 rotate-45 transform shadow-sm" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Action Row Control Buttons */}
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                onClick={handleClear}
+                disabled={gameStatus !== 'playing' || currentGuess.length === 0}
+                className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs transition disabled:opacity-40 shadow-sm"
+              >
+                Clear
+              </button>
+
+              <button
+                onClick={handleBackspace}
+                disabled={gameStatus !== 'playing' || currentGuess.length === 0}
+                className="py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-rose-300 font-bold text-xs transition disabled:opacity-40 flex items-center justify-center gap-1.5 shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2M3 12l6.414 6.414a2 2 0 001.414.586H19a2 2 0 002-2V7a2 2 0 00-2-2h-9.172a2 2 0 00-1.414.586L3 12z" />
+                </svg>
+                <span>Delete</span>
+              </button>
+
+              <button
+                onClick={handleSubmit}
+                disabled={gameStatus !== 'playing' || currentGuess.length < colorCount}
+                className="py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-xs uppercase tracking-wider shadow-md transition active:scale-95 disabled:opacity-40"
+              >
+                ENTER
+              </button>
+            </div>
           </div>
+
         </div>
 
       </main>
 
+      {}
+      {/* HOW TO PLAY MODAL */}
       {showHowToPlay && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 flex flex-col gap-3 shadow-2xl relative">
@@ -913,7 +931,7 @@ export default function App() {
 
             <button 
               onClick={() => setShowHowToPlay(false)}
-              className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition"
+              className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition"
             >
               Got it!
             </button>
@@ -921,6 +939,7 @@ export default function App() {
         </div>
       )}
 
+      {/* STATISTICS MODAL */}
       {showStats && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 flex flex-col gap-4 shadow-2xl relative">
@@ -973,6 +992,7 @@ export default function App() {
         </div>
       )}
 
+      {/* SETTINGS MODAL */}
       {showSettings && (
         <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 flex flex-col gap-3 shadow-2xl relative max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -1119,6 +1139,7 @@ export default function App() {
         </div>
       )}
 
+      {}
       <style>{`
         @keyframes shake {
           0%, 100% { transform: translateX(0); }
