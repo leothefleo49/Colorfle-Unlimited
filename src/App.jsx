@@ -557,7 +557,8 @@ export default function App() {
       )}
 
       {/* HEADER */}
-      <header className="w-full max-w-5xl px-4 py-3 flex items-center justify-between border-b border-slate-800/80 bg-[#12131C]/90 backdrop-blur-md sticky top-0 z-30">
+      {}
+      <header className="w-full max-w-7xl 2xl:max-w-[1500px] px-4 sm:px-6 py-3.5 flex items-center justify-between border-b border-slate-800/80 bg-[#12131C]/90 backdrop-blur-md sticky top-0 z-30">
         <div className="flex items-center gap-2">
           <button 
             onClick={() => setShowHowToPlay(true)}
@@ -623,13 +624,13 @@ export default function App() {
       </header>
 
       {}
-      <main className="w-full max-w-5xl px-4 flex-1 flex flex-col md:flex-row items-center md:items-stretch justify-center md:justify-between gap-6 my-3">
+      <main className="w-full max-w-7xl 2xl:max-w-[1500px] px-4 sm:px-6 flex-1 flex flex-col md:flex-row items-center md:items-stretch justify-center md:justify-between gap-6 xl:gap-10 my-3">
         
         {/* LEFT PANEL: Responsive Pie Wheel Display */}
-        <div className="w-full md:w-5/12 flex flex-col items-center justify-center p-5 bg-slate-900/40 rounded-3xl border border-slate-800/80 shadow-2xl backdrop-blur-xs gap-3">
+        <div className="w-full md:w-5/12 lg:w-1/2 flex flex-col items-center justify-center p-6 lg:p-8 bg-slate-900/40 rounded-3xl border border-slate-800/80 shadow-2xl backdrop-blur-xs gap-4">
           
           <div 
-            className={`w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 rounded-full border-4 border-slate-700/80 shadow-2xl relative overflow-hidden transition-all duration-700 transform ${
+            className={`w-48 h-48 sm:w-56 sm:h-56 lg:w-64 lg:h-64 xl:w-72 xl:h-72 2xl:w-80 2xl:h-80 rounded-full border-4 border-slate-700/80 shadow-2xl relative overflow-hidden transition-all duration-700 transform ${
               isSpinningWin ? 'rotate-[720deg] scale-110 border-emerald-400 shadow-[0_0_35px_rgba(52,211,153,0.7)]' : ''
             }`}
           >
@@ -691,9 +692,8 @@ export default function App() {
           </div>
         </div>
 
-        {}
         {/* RIGHT PANEL: Guess Grid & Keyboard Workspace */}
-        <div className="w-full md:w-7/12 flex flex-col justify-between gap-4 max-w-md md:max-w-none">
+        <div className="w-full md:w-7/12 lg:w-1/2 flex flex-col justify-between gap-4 max-w-md md:max-w-none">
           
           {/* Guess Rows Scrollable Grid */}
           <div className={`w-full flex flex-col gap-2 max-h-[280px] md:max-h-[340px] overflow-y-auto pr-1 custom-scrollbar ${maxAttempts > 8 ? 'pr-2' : ''}`}>
@@ -820,6 +820,7 @@ export default function App() {
           )}
 
           {/* Color Swatch Keyboard */}
+          {}
           <div className="w-full flex flex-col gap-2">
             <div className="grid grid-cols-7 sm:grid-cols-10 gap-1.5 sm:gap-2 bg-slate-900/90 p-2.5 rounded-2xl border border-slate-800 shadow-inner">
               {PALETTE.map((color) => {
@@ -842,8 +843,8 @@ export default function App() {
                     key={color.id}
                     disabled={gameStatus !== 'playing' || isAbsent}
                     onClick={() => handleSelectColor(color.id)}
-                    className={`h-10 sm:h-11 rounded-xl flex items-center justify-center relative overflow-hidden transition-all duration-150 transform active:scale-90 shadow-sm ${
-                      isAbsent ? 'cursor-not-allowed opacity-80' : 'hover:scale-105'
+                    className={`h-10 sm:h-11 xl:h-12 rounded-xl flex items-center justify-center relative overflow-hidden border-2 border-slate-600/80 hover:border-slate-300 transition-all duration-150 transform active:scale-90 shadow-md ${
+                      isAbsent ? 'cursor-not-allowed opacity-80 border-slate-800' : 'hover:scale-105'
                     } ${badgeStyle}`}
                     style={{ backgroundColor: color.hex }}
                     title={color.name}
