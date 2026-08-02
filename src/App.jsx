@@ -1423,13 +1423,26 @@ export default function App() {
                   </div>
 
                   <div className="text-[10px] text-slate-400 mt-2 p-2 bg-slate-900/50 rounded-lg border border-slate-700/50">
-                    Need help finding your type? Try accurate tests at <a href="https://enchroma.com/pages/color-blind-test" target="_blank" className="text-purple-400 underline font-bold" rel="noreferrer">EnChroma</a> or <a href="https://colorite.com" target="_blank" className="text-purple-400 underline font-bold" rel="noreferrer">Colorite</a>.
+                    Need help finding your type? Try the accurate test at <a href="https://enchroma.com/pages/color-blind-test" target="_blank" className="text-purple-400 underline font-bold" rel="noreferrer">EnChroma</a>.
+                    Once you have your results, select your type and adjust the intensity slider above.
                     
-                    <div className="mt-2 flex flex-col gap-1.5">
-                      <span className="font-bold text-slate-300">Auto-Configure via JSON:</span>
-                      <input type="text" placeholder='Paste e.g. {"type": "deuteranopia", "strength": 0.8}' onChange={handleCbImport} className="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-[9px] text-white font-mono placeholder:text-slate-500" />
-                      <div className="flex items-center justify-between text-[9px]">
-                        <span>Or upload file:</span>
+                    <div className="mt-3 flex flex-col gap-1.5 border-t border-slate-700/50 pt-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-slate-300">Share / Import Profile:</span>
+                        <button 
+                          onClick={() => {
+                            const profile = JSON.stringify({ type: cbType, strength: cbStrength });
+                            navigator.clipboard.writeText(profile);
+                            showToast("Profile copied to clipboard!");
+                          }}
+                          className="px-2 py-0.5 bg-slate-700 hover:bg-slate-600 text-white rounded text-[9px] font-bold transition"
+                        >
+                          Copy My Profile
+                        </button>
+                      </div>
+                      <input type="text" placeholder='Paste profile here to import...' onChange={handleCbImport} className="w-full bg-slate-800 border border-slate-600 rounded p-1.5 text-[9px] text-white font-mono placeholder:text-slate-500" />
+                      <div className="flex items-center justify-between text-[9px] mt-1">
+                        <span>Or upload profile .json:</span>
                         <input type="file" accept=".json" onChange={handleCbFileUpload} className="max-w-[120px]" />
                       </div>
                     </div>
