@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 
-// --- PALETTE DEFINITION ---
 const PALETTE = [
   { id: 'white', name: 'White', hex: '#FFFFFF', code: 'WHT' },
   { id: 'cream', name: 'Cream', hex: '#FFF2C6', code: 'CRM' },
@@ -29,7 +28,6 @@ const PALETTE_MAP = PALETTE.reduce((acc, curr) => {
   return acc;
 }, {});
 
-// --- COLOR MATH & BLENDING HELPERS ---
 const hexToRgb = (hex) => {
   let c = hex.replace('#', '');
   if (c.length === 3) c = c.split('').map(x => x + x).join('');
@@ -42,7 +40,6 @@ const rgbToHex = (r, g, b) => {
   return '#' + toHex(r) + toHex(g) + toHex(b);
 };
 
-// Weighted square-root RGB blending
 const blendColorsWeighted = (recipe, weights) => {
   if (!recipe || recipe.length === 0) return '#2B2D42';
   let sumR2 = 0, sumG2 = 0, sumB2 = 0;
@@ -68,7 +65,6 @@ const blendColorsWeighted = (recipe, weights) => {
   );
 };
 
-// CIELAB Perceptual Color Distance
 const rgbToLab = (r, g, b) => {
   let r1 = r / 255, g1 = g / 255, b1 = b / 255;
   r1 = r1 > 0.04045 ? Math.pow((r1 + 0.055) / 1.055, 2.4) : r1 / 12.92;
@@ -86,9 +82,16 @@ const rgbToLab = (r, g, b) => {
   return { l: (116 * y) - 16, a: 500 * (x - y), b: 200 * (y - z) };
 };
 
-const calculateAccuracy = (targetRecipe, targetWeights, guessRecipe) => {
-  if (targetRecipe.length === guessRecipe.length && targetRecipe.every((col, i) => col === guessRecipe[i])) {
-    return 100.0;
+const calculateAccuracy = (targetRecipe, targetWeights, guessRecipe, splitMode) => {
+  // Exact match bypass
+  if (splitMode === 'even') {
+    const sortedTarget = [...targetRecipe].sort().join(',');
+    const sortedGuess = [...guessRecipe].sort().join(',');
+    if (sortedTarget === sortedGuess) return 100.0;
+  } else {
+    if (targetRecipe.length === guessRecipe.length && targetRecipe.every((col, i) => col === guessRecipe[i])) {
+      return 100.0;
+    }
   }
 
   const targetHex = blendColorsWeighted(targetRecipe, targetWeights);
@@ -111,10 +114,23 @@ const calculateAccuracy = (targetRecipe, targetWeights, guessRecipe) => {
   return Math.min(99.9, Math.round(rawAcc * 10) / 10);
 };
 
-const evaluateTileStatuses = (targetRecipe, guessRecipe) => {
+const evaluateTileStatuses = (targetRecipe, guessRecipe, splitMode) => {
   const result = new Array(guessRecipe.length).fill('absent');
   const targetPool = [...targetRecipe];
 
+  // In Even Split, position doesn't matter. You either have the color or you don't.
+  if (splitMode === 'even') {
+    for (let i = 0; i < guessRecipe.length; i++) {
+      const idx = targetPool.indexOf(guessRecipe[i]);
+      if (idx !== -1) {
+        result[i] = 'correct'; // Green = In the mix
+        targetPool.splice(idx, 1);
+      }
+    }
+    return result;
+  }
+
+  // Uneven Split: Position matters!
   for (let i = 0; i < guessRecipe.length; i++) {
     if (guessRecipe[i] === targetRecipe[i]) {
       result[i] = 'correct';
@@ -127,7 +143,7 @@ const evaluateTileStatuses = (targetRecipe, guessRecipe) => {
     if (result[i] !== 'correct') {
       const idx = targetPool.indexOf(guessRecipe[i]);
       if (idx !== -1) {
-        result[i] = 'present';
+        result[i] = 'present'; // Yellow = In the mix, wrong position
         targetPool.splice(idx, 1);
       }
     }
@@ -136,27 +152,35 @@ const evaluateTileStatuses = (targetRecipe, guessRecipe) => {
   return result;
 };
 
-// --- HAPTIC & AUDIO ENGINE ---
 const triggerHaptic = (type, enabled = true) => {
-  if (!enabled || typeof window === 'undefined') return;
-  // Note: iOS Safari natively blocks navigator.vibrate. This will work on Android/PWA.
-  if ('vibrate' in navigator && typeof navigator.vibrate === 'function') {
-    try {
-      if (type === 'tap') navigator.vibrate(40);
-      else if (type === 'delete') navigator.vibrate(55);
-      else if (type === 'submit') navigator.vibrate([60, 40, 60]);
-      else if (type === 'win') navigator.vibrate([90, 60, 90, 60, 160]);
-      else if (type === 'error') navigator.vibrate([70, 50, 70]);
-    } catch (e) {}
-  }
+  if (!enabled || typeof window === 'undefined' || !navigator.vibrate) return;
+  try {
+    // Array patterns for stronger tactile feel on Android
+    if (type === 'tap') navigator.vibrate(25);
+    else if (type === 'delete') navigator.vibrate([35, 25, 35]);
+    else if (type === 'submit') navigator.vibrate([40, 20, 50]);
+    else if (type === 'win') navigator.vibrate([60, 40, 60, 40, 120]);
+    else if (type === 'error') navigator.vibrate([50, 30, 50, 30, 50]);
+  } catch (e) {}
 };
+
+// Use a shared singleton to prevent the "6 concurrent AudioContexts" crash bug
+let sharedAudioCtx = null;
 
 const playSoundEffect = (type, enabled = true) => {
   if (!enabled) return;
   try {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    
+    if (!sharedAudioCtx) {
+      sharedAudioCtx = new AudioCtx();
+    }
+    if (sharedAudioCtx.state === 'suspended') {
+      sharedAudioCtx.resume();
+    }
+    
+    const ctx = sharedAudioCtx;
     const now = ctx.currentTime;
 
     if (type === 'tap') {
@@ -223,6 +247,20 @@ const playSoundEffect = (type, enabled = true) => {
   } catch (e) {}
 };
 
+const CB_BASE_MATRICES = {
+  protanopia: [0.567, 0.433, 0, 0, 0, 0.558, 0.442, 0, 0, 0, 0, 0.242, 0.758, 0, 0, 0, 0, 0, 1, 0],
+  deuteranopia: [0.625, 0.375, 0, 0, 0, 0.7, 0.3, 0, 0, 0, 0, 0.3, 0.7, 0, 0, 0, 0, 0, 1, 0],
+  tritanopia: [0.95, 0.05, 0, 0, 0, 0, 0.433, 0.567, 0, 0, 0, 0.475, 0.525, 0, 0, 0, 0, 0, 1, 0],
+  achromatopsia: [0.299, 0.587, 0.114, 0, 0, 0.299, 0.587, 0.114, 0, 0, 0.299, 0.587, 0.114, 0, 0, 0, 0, 0, 1, 0]
+};
+const CB_IDENTITY = [1, 0, 0, 0, 0,  0, 1, 0, 0, 0,  0, 0, 1, 0, 0,  0, 0, 0, 1, 0];
+
+const getInterpolatedMatrix = (type, strength) => {
+  const target = CB_BASE_MATRICES[type];
+  if (!target) return CB_IDENTITY.join(',');
+  return target.map((val, i) => CB_IDENTITY[i] + (val - CB_IDENTITY[i]) * strength).join(',');
+};
+
 const FIXED_UNEVEN_WEIGHTS = {
   2: [0.65, 0.35],
   3: [0.50, 0.35, 0.15],
@@ -232,9 +270,7 @@ const FIXED_UNEVEN_WEIGHTS = {
 };
 
 const generateWeights = (count, mode) => {
-  if (mode === 'even') {
-    return new Array(count).fill(1 / count);
-  }
+  if (mode === 'even') return new Array(count).fill(1 / count);
   return FIXED_UNEVEN_WEIGHTS[count] || FIXED_UNEVEN_WEIGHTS[3];
 };
 
@@ -252,9 +288,10 @@ export default function App() {
   const [hapticEnabled, setHapticEnabled] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  // Colorblindness Simulation & Accessibility
+  // Advanced Colorblind Adjustments
   const [cbEnabled, setCbEnabled] = useState(false);
-  const [cbType, setCbType] = useState('deuteranopia'); // default
+  const [cbType, setCbType] = useState('deuteranopia');
+  const [cbStrength, setCbStrength] = useState(1.0); // 0.0 to 1.0
   const [cbHighContrast, setCbHighContrast] = useState(false);
   const [cbSymbols, setCbSymbols] = useState(false);
   const [cbColorNames, setCbColorNames] = useState(false);
@@ -269,7 +306,7 @@ export default function App() {
   const [toastMessage, setToastMessage] = useState('');
   const [isSpinningWin, setIsSpinningWin] = useState(false);
 
-  // Previous Guess Inspection State (Modes 1, 2, 3)
+  // Inspection Compare State
   const [inspectingGuessIndex, setInspectingGuessIndex] = useState(null);
   const [inspectMode, setInspectMode] = useState('mode1'); // mode1, mode2, mode3
 
@@ -278,17 +315,16 @@ export default function App() {
   const [showStats, setShowStats] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Persisted Stats mapping per configuration logic
   const configKey = [colorCount, splitMode, wordleMode ? 'w' : 'nw', allowDuplicates ? 'd' : 'nd', maxAttempts].join('_');
   const [allStats, setAllStats] = useState(() => {
-    const saved = localStorage.getItem('colorfle_all_stats');
+    const saved = localStorage.getItem('colorfle_all_stats_v2');
     return saved ? JSON.parse(saved) : {};
   });
 
   const canvasRef = useRef(null);
 
-  // --- Injections for Edge-to-Edge display and Notch fixing ---
   useEffect(() => {
-    // Force background to avoid white/black bars on viewport boundaries
     document.documentElement.style.backgroundColor = '#12131C';
     document.body.style.backgroundColor = '#12131C';
 
@@ -298,12 +334,11 @@ export default function App() {
       meta.name = 'viewport';
       document.head.appendChild(meta);
     }
-    // viewport-fit=cover fills up notch areas on iOS/Android
     meta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover';
   }, []);
 
   useEffect(() => {
-    localStorage.setItem('colorfle_all_stats', JSON.stringify(allStats));
+    localStorage.setItem('colorfle_all_stats_v2', JSON.stringify(allStats));
   }, [allStats]);
 
   const currentStats = useMemo(() => {
@@ -313,6 +348,8 @@ export default function App() {
       currentStreak: 0,
       maxStreak: 0,
       totalAccuracy: 0,
+      totalGuessesForWins: 0, // Advanced stat
+      totalGuessesAll: 0,     // Advanced stat
       guessDistribution: {}
     };
   }, [allStats, configKey]);
@@ -441,8 +478,8 @@ export default function App() {
       return;
     }
 
-    const accuracy = calculateAccuracy(targetRecipe, targetWeights, currentGuess);
-    const tileStatuses = evaluateTileStatuses(targetRecipe, currentGuess);
+    const accuracy = calculateAccuracy(targetRecipe, targetWeights, currentGuess, splitMode);
+    const tileStatuses = evaluateTileStatuses(targetRecipe, currentGuess, splitMode);
 
     const newGuesses = [
       ...guesses,
@@ -451,7 +488,7 @@ export default function App() {
 
     setGuesses(newGuesses);
     setCurrentGuess([]);
-    setInspectingGuessIndex(null); // Reset inspection on new guess
+    setInspectingGuessIndex(null); // Reset inspection mode!
     playSoundEffect('submit', soundEnabled);
     triggerHaptic('submit', hapticEnabled);
 
@@ -475,12 +512,8 @@ export default function App() {
   const updateStats = (isWin, attempts, finalAcc) => {
     setAllStats(prev => {
       const oldConfig = prev[configKey] || {
-        played: 0,
-        wins: 0,
-        currentStreak: 0,
-        maxStreak: 0,
-        totalAccuracy: 0,
-        guessDistribution: {}
+        played: 0, wins: 0, currentStreak: 0, maxStreak: 0, 
+        totalAccuracy: 0, totalGuessesForWins: 0, totalGuessesAll: 0, guessDistribution: {}
       };
 
       const newPlayed = oldConfig.played + 1;
@@ -488,6 +521,9 @@ export default function App() {
       const newStreak = isWin ? oldConfig.currentStreak + 1 : 0;
       const newMaxStreak = Math.max(oldConfig.maxStreak, newStreak);
       const newTotalAcc = oldConfig.totalAccuracy + finalAcc;
+      const newTotalAll = (oldConfig.totalGuessesAll || 0) + attempts;
+      const newTotalWins = (oldConfig.totalGuessesForWins || 0) + (isWin ? attempts : 0);
+      
       const newDist = { ...oldConfig.guessDistribution };
       if (isWin) {
         newDist[attempts] = (newDist[attempts] || 0) + 1;
@@ -501,6 +537,8 @@ export default function App() {
           currentStreak: newStreak,
           maxStreak: newMaxStreak,
           totalAccuracy: newTotalAcc,
+          totalGuessesAll: newTotalAll,
+          totalGuessesForWins: newTotalWins,
           guessDistribution: newDist
         }
       };
@@ -553,40 +591,27 @@ export default function App() {
     return blendColorsWeighted(targetRecipe, targetWeights);
   }, [targetRecipe, targetWeights]);
 
-  // Inspection Calculation
   const inspectedGuess = inspectingGuessIndex !== null ? guesses[inspectingGuessIndex] : null;
-  const inspectedGuessBlendHex = inspectedGuess ? blendColorsWeighted(inspectGuessRecipe(inspectedGuess), targetWeights) : null;
+  const inspectedGuessBlendHex = inspectedGuess ? blendColorsWeighted(inspectedGuess.recipe, targetWeights) : null;
 
-  function inspectGuessRecipe(g) {
-    return g ? g.recipe : [];
-  }
-
-  // Determine what solid hex goes into the Right Half of the pie.
+  // Determine Right Half Fill
   const pieRightFillHex = useMemo(() => {
     if (inspectedGuess && inspectMode === 'mode3') {
-      return inspectedGuessBlendHex; // Mode 3: Right = Guess Blend
+      return inspectedGuessBlendHex; 
     }
-    return targetSolidHex; // Default/Mode1/Mode2: Right = Target Answer
+    return targetSolidHex; 
   }, [inspectedGuess, inspectMode, inspectedGuessBlendHex, targetSolidHex]);
 
-  // Determine if the Left Half of the pie should be slices OR a solid color
+  // Determine Left Half Logic
   const isLeftSolidBlendMode = useMemo(() => {
-    if (inspectedGuess && inspectMode === 'mode2') {
-      return true; // Mode 2: Left = Guess Blend
-    }
-    return false; // Default/Mode1/Mode3: Left = Slices
+    if (inspectedGuess && inspectMode === 'mode2') return true; 
+    return false; 
   }, [inspectedGuess, inspectMode]);
 
   const activeLeftRecipe = useMemo(() => {
-    if (inspectedGuess) {
-      return inspectedGuess.recipe;
-    }
-    if (currentGuess.length > 0) {
-      return currentGuess;
-    }
-    if (guesses.length > 0) {
-      return guesses[guesses.length - 1].recipe;
-    }
+    if (inspectedGuess) return inspectedGuess.recipe;
+    if (currentGuess.length > 0) return currentGuess;
+    if (guesses.length > 0) return guesses[guesses.length - 1].recipe;
     return [];
   }, [inspectedGuess, guesses, currentGuess]);
 
@@ -667,30 +692,19 @@ export default function App() {
   return (
     <div 
       className="fixed inset-0 w-full h-full bg-[#12131C] text-slate-100 flex flex-col justify-between font-sans selection:bg-purple-500 selection:text-white overflow-hidden select-none touch-none pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]"
-      style={{ filter: cbEnabled ? 'url(#cb-' + cbType + ')' : 'none' }}
+      style={{ filter: cbEnabled ? 'url(#cb-matrix)' : 'none' }}
     >
-      {/* Hidden SVG Colorblind Simulation Matrices */}
+      {/* Live SVG Matrix for Colorblindness Adjustments */}
       <svg className="hidden" style={{ display: 'none' }}>
         <defs>
-          <filter id="cb-protanopia">
-            <feColorMatrix type="matrix" values="0.567, 0.433, 0, 0, 0   0.558, 0.442, 0, 0, 0   0, 0.242, 0.758, 0, 0   0, 0, 0, 1, 0" />
-          </filter>
-          <filter id="cb-deuteranopia">
-            <feColorMatrix type="matrix" values="0.625, 0.375, 0, 0, 0   0.7, 0.3, 0, 0, 0   0, 0.3, 0.7, 0, 0   0, 0, 0, 1, 0" />
-          </filter>
-          <filter id="cb-tritanopia">
-            <feColorMatrix type="matrix" values="0.95, 0.05, 0, 0, 0   0, 0.433, 0.567, 0, 0   0, 0.475, 0.525, 0, 0   0, 0, 0, 1, 0" />
-          </filter>
-          <filter id="cb-achromatopsia">
-            <feColorMatrix type="matrix" values="0.299, 0.587, 0.114, 0, 0   0.299, 0.587, 0.114, 0, 0   0.299, 0.587, 0.114, 0, 0   0, 0, 0, 1, 0" />
+          <filter id="cb-matrix">
+            <feColorMatrix type="matrix" values={getInterpolatedMatrix(cbType, cbStrength)} />
           </filter>
         </defs>
       </svg>
 
-      {/* Confetti Layer */}
       <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-50" />
 
-      {/* Toast Banner */}
       {toastMessage && (
         <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 bg-slate-800 text-white px-5 py-2 rounded-full border border-purple-500/50 shadow-2xl backdrop-blur-md text-xs font-bold flex items-center gap-2 animate-bounce">
           <svg className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
@@ -758,8 +772,11 @@ export default function App() {
             className="w-8 h-8 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 flex items-center justify-center transition"
             title="Statistics"
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 012 2h2a2 2 0 012-2z" />
+            {/* Pristine Lucide Chart Bar Icon */}
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="18" y="3" width="4" height="18" rx="1"/>
+              <rect x="10" y="8" width="4" height="13" rx="1"/>
+              <rect x="2" y="13" width="4" height="8" rx="1"/>
             </svg>
           </button>
 
@@ -855,7 +872,7 @@ export default function App() {
                     className={'px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-bold transition ' + (
                       inspectMode === 'mode1' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                     )}
-                    title="Target Color vs Guess Slices"
+                    title="Target vs Guess Slices"
                   >
                     1. Target vs Slices
                   </button>
@@ -867,7 +884,7 @@ export default function App() {
                     className={'px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-bold transition ' + (
                       inspectMode === 'mode2' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                     )}
-                    title="Target Color vs Guess Blend"
+                    title="Target vs Blended Guess"
                   >
                     2. Target vs Blend
                   </button>
@@ -879,7 +896,7 @@ export default function App() {
                     className={'px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-bold transition ' + (
                       inspectMode === 'mode3' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                     )}
-                    title="Guess Blend vs Guess Slices"
+                    title="Blended Guess vs Slices"
                   >
                     3. Blend vs Slices
                   </button>
@@ -892,7 +909,7 @@ export default function App() {
                   }}
                   className="px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 text-[9px] font-bold hover:bg-slate-700 transition"
                 >
-                  ✕ Close Comparison
+                  ✕ Close Compare
                 </button>
               </div>
             ) : (
@@ -948,12 +965,12 @@ export default function App() {
                       let borderStyle = 'border-slate-700/80 bg-slate-800/40';
                       if (wordleMode && tileStatus === 'correct') {
                         borderStyle = cbHighContrast
-                          ? 'border-blue-500 border-[3px] shadow-[0_0_12px_rgba(59,130,246,0.8)]'
-                          : 'border-emerald-500 border-[3px] shadow-[0_0_12px_rgba(16,185,129,0.8)]';
+                          ? 'border-blue-500 border-4 shadow-[0_0_12px_rgba(59,130,246,0.8)]'
+                          : 'border-emerald-500 border-4 shadow-[0_0_12px_rgba(16,185,129,0.8)]';
                       } else if (wordleMode && tileStatus === 'present') {
                         borderStyle = cbHighContrast
-                          ? 'border-orange-500 border-[3px] shadow-[0_0_12px_rgba(249,115,22,0.8)]'
-                          : 'border-amber-400 border-[3px] shadow-[0_0_12px_rgba(251,191,36,0.8)]';
+                          ? 'border-orange-500 border-4 shadow-[0_0_12px_rgba(249,115,22,0.8)]'
+                          : 'border-amber-400 border-4 shadow-[0_0_12px_rgba(251,191,36,0.8)]';
                       } else if (wordleMode && tileStatus === 'absent') {
                         borderStyle = 'border-slate-800';
                       }
@@ -1008,7 +1025,7 @@ export default function App() {
                           isInspected ? 'border-purple-300 ring-2 ring-purple-400' : 'border-slate-700/80'
                         ) + ' ' + badgeTextColor}
                         style={{ backgroundColor: guessMixedHex }}
-                        title="Click to compare this guess side-by-side on pie wheel!"
+                        title="Tap to compare side-by-side!"
                       >
                         {guess.accuracy.toFixed(1) + '%'}
                       </button>
@@ -1063,14 +1080,14 @@ export default function App() {
                 let badgeStyle = 'border-slate-600/90';
                 if (wordleMode && status === 'correct') {
                   badgeStyle = cbHighContrast 
-                    ? 'border-blue-400'
-                    : 'border-emerald-400';
+                    ? 'border-blue-500 border-2'
+                    : 'border-emerald-500 border-2 shadow-[0_0_12px_rgba(16,185,129,0.5)]';
                 } else if (wordleMode && status === 'present') {
                   badgeStyle = cbHighContrast
-                    ? 'border-orange-400'
-                    : 'border-amber-400';
+                    ? 'border-orange-500 border-2'
+                    : 'border-amber-400 border-2 shadow-[0_0_12px_rgba(251,191,36,0.5)]';
                 } else if (isAbsent) {
-                  badgeStyle = 'border-red-500/80 opacity-70 grayscale-[30%]'; // Red highlight for absent!
+                  badgeStyle = 'border-red-500/80 opacity-60'; // Red highlight + Dim
                 }
 
                 return (
@@ -1078,7 +1095,7 @@ export default function App() {
                     key={color.id}
                     disabled={gameStatus !== 'playing' || isAbsent}
                     onClick={() => handleSelectColor(color.id)}
-                    className={'h-7 sm:h-9 rounded-lg flex flex-col items-center justify-center relative overflow-hidden transition-all duration-150 transform border-[3px] active:scale-90 shadow-sm ' + (
+                    className={'h-7 sm:h-9 rounded-lg flex flex-col items-center justify-center relative overflow-hidden transition-all duration-150 transform active:scale-90 shadow-sm border ' + (
                       isAbsent ? 'cursor-not-allowed' : 'hover:scale-105 hover:border-slate-300'
                     ) + ' ' + badgeStyle}
                     style={{ backgroundColor: color.hex }}
@@ -1090,7 +1107,7 @@ export default function App() {
                       </span>
                     )}
 
-                    {/* Bold red cross out */}
+                    {/* Bold red strikeout */}
                     {isAbsent && (
                       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                         <div className="w-[120%] h-1 bg-red-600 rotate-45 transform shadow-sm" />
@@ -1153,17 +1170,22 @@ export default function App() {
             <div className="space-y-2 text-xs text-slate-300 leading-relaxed">
               <p>Find the exact blend of <strong>{colorCount + ' colors'}</strong> that match the target color on the right half of the pie!</p>
               
-              <p>Left pie slices run from top (largest contribution e.g. 50%) to bottom (smallest e.g. 15%). Click any previous guess circle to compare side-by-side in 3 modes!</p>
+              <p>Left pie slices run from top (largest contribution) to bottom (smallest). Tap historical guesses to compare side-by-side!</p>
 
               {wordleMode && (
                 <div className="p-2.5 bg-slate-800 rounded-xl space-y-1.5 border border-slate-700">
                   <div className="flex items-center gap-2">
                     <div className="w-4 h-4 rounded border-4 border-emerald-500 bg-purple-600" />
-                    <span><strong>Thick Green Border:</strong> Correct color in right slot!</span>
+                    <span><strong>Thick Green:</strong> Correct color in right slot.</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border-4 border-amber-400 bg-pink-500" />
-                    <span><strong>Thick Yellow Border:</strong> Used in recipe, wrong slot.</span>
+                  {splitMode === 'uneven' && (
+                    <div className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded border-4 border-amber-400 bg-pink-500" />
+                      <span><strong>Thick Yellow:</strong> Used in recipe, wrong slot.</span>
+                    </div>
+                  )}
+                  <div className="text-[10px] text-slate-400 italic">
+                    Note: Yellow borders are disabled in Even Split mode since order doesn't matter!
                   </div>
                 </div>
               )}
@@ -1198,7 +1220,7 @@ export default function App() {
               <span className="text-[10px] text-slate-400 font-semibold uppercase">{colorCount + ' Colors • ' + splitMode}</span>
             </div>
 
-            <div className="grid grid-cols-4 gap-2 text-center">
+            <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-slate-800 p-2 rounded-xl border border-slate-700">
                 <div className="text-base font-black text-white">{currentStats.played}</div>
                 <div className="text-[9px] text-slate-400 uppercase font-bold">Played</div>
@@ -1218,6 +1240,18 @@ export default function App() {
                   {(currentStats.played > 0 ? (currentStats.totalAccuracy / currentStats.played).toFixed(1) : '0') + '%'}
                 </div>
                 <div className="text-[9px] text-slate-400 uppercase font-bold">Avg Acc</div>
+              </div>
+              <div className="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                <div className="text-base font-black text-cyan-400">
+                  {currentStats.totalGuessesAll}
+                </div>
+                <div className="text-[9px] text-slate-400 uppercase font-bold">Total Guesses</div>
+              </div>
+              <div className="bg-slate-800 p-2 rounded-xl border border-slate-700">
+                <div className="text-base font-black text-rose-400">
+                  {currentStats.wins > 0 ? (currentStats.totalGuessesForWins / currentStats.wins).toFixed(1) : '-'}
+                </div>
+                <div className="text-[9px] text-slate-400 uppercase font-bold">Avg Guess/Win</div>
               </div>
             </div>
 
@@ -1248,7 +1282,6 @@ export default function App() {
             </button>
             <h2 className="text-lg font-black text-center text-amber-400">Settings</h2>
 
-            {/* Display & Feedback Options */}
             <div className="space-y-1.5 bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
               <label className="text-xs font-bold uppercase text-slate-300 block">App Features & Haptics</label>
 
@@ -1267,7 +1300,10 @@ export default function App() {
               </div>
 
               <div className="flex items-center justify-between text-xs text-slate-300">
-                <span>Haptic Vibration Feedback</span>
+                <div>
+                  <div>Haptic Vibration</div>
+                  <div className="text-[9px] text-slate-400 italic">Unsupported on iOS Safari</div>
+                </div>
                 <button
                   onClick={() => setHapticEnabled(!hapticEnabled)}
                   className={'w-10 h-5 rounded-full transition-colors relative p-0.5 ' + (
@@ -1281,7 +1317,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Difficulty */}
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase text-slate-400">Number of Colors</label>
               <div className="grid grid-cols-5 gap-1.5">
@@ -1299,7 +1334,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Split Mode */}
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase text-slate-400">Slice Contribution Split</label>
               <div className="grid grid-cols-2 gap-2">
@@ -1322,7 +1356,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Duplicate Colors Option */}
             <div className="flex items-center justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
               <div>
                 <div className="text-xs font-bold text-white">Allow Duplicate Colors</div>
@@ -1340,25 +1373,6 @@ export default function App() {
               </button>
             </div>
 
-            {/* Wordle Mode Toggle */}
-            <div className="flex items-center justify-between bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
-              <div>
-                <div className="text-xs font-bold text-white">Wordle Hints Mode</div>
-                <div className="text-[10px] text-slate-400">Thick border feedback on tiles</div>
-              </div>
-              <button
-                onClick={() => setWordleMode(!wordleMode)}
-                className={'w-12 h-6 rounded-full transition-colors relative p-0.5 ' + (
-                  wordleMode ? 'bg-emerald-500' : 'bg-slate-700'
-                )}
-              >
-                <div className={'w-5 h-5 rounded-full bg-white transition-transform ' + (
-                  wordleMode ? 'translate-x-6' : 'translate-x-0'
-                )} />
-              </button>
-            </div>
-
-            {/* Colorblind Adjustments */}
             <div className="space-y-2 bg-slate-800/60 p-2.5 rounded-xl border border-slate-700">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-white">Colorblind Simulation Profile</span>
@@ -1375,27 +1389,45 @@ export default function App() {
               </div>
 
               {cbEnabled && (
-                <div className="grid grid-cols-2 gap-1.5 pt-1">
-                  {[
-                    { id: 'deuteranopia', label: 'Deuteranopia' },
-                    { id: 'protanopia', label: 'Protanopia' },
-                    { id: 'tritanopia', label: 'Tritanopia' },
-                    { id: 'achromatopsia', label: 'Monochrome' },
-                  ].map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => setCbType(item.id)}
-                      className={'py-1 px-2 rounded-lg text-[10px] font-bold border transition ' + (
-                        cbType === item.id ? 'bg-purple-600 border-purple-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'
-                      )}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
+                    {[
+                      { id: 'deuteranopia', label: 'Deuteranopia' },
+                      { id: 'protanopia', label: 'Protanopia' },
+                      { id: 'tritanopia', label: 'Tritanopia' },
+                      { id: 'achromatopsia', label: 'Monochrome' },
+                    ].map(item => (
+                      <button
+                        key={item.id}
+                        onClick={() => setCbType(item.id)}
+                        className={'py-1 px-2 rounded-lg text-[10px] font-bold border transition ' + (
+                          cbType === item.id ? 'bg-purple-600 border-purple-400 text-white' : 'bg-slate-800 border-slate-700 text-slate-400'
+                        )}
+                      >
+                        {item.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="pt-2">
+                    <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                      <span>Simulation Intensity</span>
+                      <span>{Math.round(cbStrength * 100)}%</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="1" 
+                      step="0.05" 
+                      value={cbStrength} 
+                      onChange={(e) => setCbStrength(parseFloat(e.target.value))}
+                      className="w-full accent-purple-500 h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer"
+                    />
+                  </div>
+                </>
               )}
 
-              <div className="border-t border-slate-700/80 pt-2 space-y-1.5">
+              <div className="border-t border-slate-700/80 pt-2 space-y-1.5 mt-2">
                 <label className="flex items-center justify-between text-xs text-slate-300 cursor-pointer">
                   <span>High Contrast Borders (Blue / Orange)</span>
                   <input 
@@ -1428,7 +1460,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Max Attempts */}
             <div className="space-y-1">
               <label className="text-xs font-bold uppercase text-slate-400">{'Max Attempts (' + maxAttempts + ')'}</label>
               <div className="grid grid-cols-4 sm:grid-cols-8 gap-1">
