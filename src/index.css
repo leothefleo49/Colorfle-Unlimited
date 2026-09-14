@@ -44,9 +44,3 @@ body,
 /* Win sequence: slices blend into the target color over ~2s while the
    wheel spins — gradual, eased, satisfying */
 .pie-slice-win { transition: fill 1900ms cubic-bezier(0.45, 0, 0.2, 1); }
-
-/* Physical-keyboard digit hints: only shown on precise pointers (desktop) */
-.key-hint { display: none; }
-@media (hover: hover) and (pointer: fine) {
-  .key-hint { display: flex; }
-}

@@ -189,6 +189,22 @@ export const getInterpolatedMatrix = (type, strength) => {
   return target.map((val, i) => CB_IDENTITY[i] + (val - CB_IDENTITY[i]) * strength).join(',');
 };
 
+// Apply the interpolated colorblind matrix to a hex color directly.
+// Used instead of an SVG filter on the root: composited/animated layers
+// (transforms, transitions) escape reference filters in some browsers,
+// which made colors flicker between simulated and normal. Applying the
+// matrix in JS to each color is deterministic and stays consistent.
+export const applyCbMatrix = (hex, type, strength) => {
+  if (!type || !(strength > 0)) return hex;
+  const m = getInterpolatedMatrix(type, strength).split(',').map(Number);
+  const { r, g, b } = hexToRgb(hex);
+  return rgbToHex(
+    m[0] * r + m[1] * g + m[2] * b + m[3] * 255,
+    m[5] * r + m[6] * g + m[7] * b + m[8] * 255,
+    m[10] * r + m[11] * g + m[12] * b + m[13] * 255
+  );
+};
+
 // Preset exponential weight distributions (Top = Largest, Bottom = Smallest)
 export const FIXED_UNEVEN_WEIGHTS = {
   2: [0.65, 0.35],

@@ -10,7 +10,6 @@ import {
   getLocalDateStr,
   msUntilLocalMidnight,
   formatDuration,
-  getInterpolatedMatrix,
   getContrastTextColor,
   normalizeProfile,
   parseProfileJson,
@@ -18,7 +17,8 @@ import {
   decodeProfileB64,
   buildShareText,
   blankStats,
-  makeConfigKey
+  makeConfigKey,
+  applyCbMatrix
 } from './game.js';
 
 const CHROMASIGHT_URL = 'https://chroma-sight-profiler.vercel.app';
@@ -180,7 +180,7 @@ export default function App() {
   const [nowTick, setNowTick] = useState(Date.now());
 
   const [inspectingGuessIndex, setInspectingGuessIndex] = useState(null);
-  const [inspectMode, setInspectMode] = useState('mode1'); // mode1, mode2, mode3
+  const [inspectMode, setInspectMode] = useState('mode2'); // mode2 = Blend / Target (default)
 
   // UI Modals
   const [showHowToPlay, setShowHowToPlay] = useState(false);
@@ -205,6 +205,16 @@ export default function App() {
   }, [allStats]);
 
   const currentStats = useMemo(() => allStats[configKey] || blankStats(), [allStats, configKey]);
+
+  // Colorblind simulation applied in JS to every game color (pie, tiles,
+  // keyboard, badges, borders, confetti). Replaces the old SVG filter on
+  // the root, which composited/animated layers escaped — making colors
+  // flicker between simulated and normal. This is applied consistently and
+  // only changes when the colorblind settings change.
+  const simColor = useCallback(
+    (hex) => (cbEnabled ? applyCbMatrix(hex, cbType, cbStrength) : hex),
+    [cbEnabled, cbType, cbStrength]
+  );
 
   const todayStr = useMemo(() => getLocalDateStr(), []);
 
@@ -394,6 +404,8 @@ export default function App() {
 
   const handleSelectColor = (colorId) => {
     if (gameStatus !== 'playing') return;
+    // typing a new guess closes the side-by-side comparison
+    setInspectingGuessIndex(null);
     if (currentGuess.length < colorCount) {
       playSoundEffect('tap', soundEnabled);
       triggerHaptic('tap', hapticEnabled);
@@ -442,11 +454,11 @@ export default function App() {
 
     setGuesses(newGuesses);
     setCurrentGuess([]);
-    setInspectingGuessIndex(null);
     playSoundEffect('submit', soundEnabled);
     triggerHaptic('submit', hapticEnabled);
 
     if (accuracy === 100.0) {
+      setInspectingGuessIndex(null);
       setGameStatus('won');
       // Win sequence: the wheel spins while the winning slices blend into
       // the target color (~2s), then the answer reveal + confetti fire.
@@ -469,6 +481,10 @@ export default function App() {
       triggerHaptic('error', hapticEnabled);
       updateStats(false, newGuesses.length, accuracy);
       showToast(gameMode === 'daily' ? 'Daily finished — try again tomorrow!' : 'Game Over!');
+    } else {
+      // auto-open the side-by-side comparison on the fresh guess
+      setInspectingGuessIndex(newGuesses.length - 1);
+      setInspectMode('mode2');
     }
   };
 
@@ -541,7 +557,7 @@ export default function App() {
       vx: (Math.random() - 0.5) * 16,
       vy: (Math.random() - 0.7) * 18,
       size: Math.random() * 8 + 4,
-      color: activePalette[Math.floor(Math.random() * activePalette.length)].hex,
+      color: simColor(activePalette[Math.floor(Math.random() * activePalette.length)].hex),
       rotation: Math.random() * 360,
       rSpeed: (Math.random() - 0.5) * 12
     }));
@@ -627,12 +643,6 @@ export default function App() {
         handleBackspace();
       } else if (e.key === 'Escape') {
         setInspectingGuessIndex(null);
-      } else if (/^[0-9]$/.test(e.key)) {
-        const idx = e.key === '0' ? 9 : Number(e.key) - 1;
-        if (idx < activePalette.length) {
-          e.preventDefault();
-          handleSelectColor(activePalette[idx].id);
-        }
       }
     };
     window.addEventListener('keydown', onKey);
@@ -664,7 +674,7 @@ export default function App() {
       return (
         <path
           d="M 100 190 A 90 90 0 0 1 100 10 Z"
-          fill={inspectedGuessBlendHex}
+          fill={simColor(inspectedGuessBlendHex)}
           stroke="#12131C"
           strokeWidth="2.5"
         />
@@ -696,7 +706,7 @@ export default function App() {
       const colorObj = selectedColorId ? PALETTE_MAP[selectedColorId] : null;
       // during the win sequence the slices glide into the blended target
       // color, merging the guess with the answer into one smooth disc
-      const fillColor = winning ? targetSolidHex : (colorObj ? colorObj.hex : '#222533');
+      const fillColor = winning ? simColor(targetSolidHex) : (colorObj ? simColor(colorObj.hex) : '#222533');
 
       return (
         <path
@@ -749,17 +759,7 @@ export default function App() {
   return (
     <div
       className="fixed inset-0 w-full h-full bg-[#12131C] text-slate-100 flex flex-col justify-between font-sans selection:bg-purple-500 selection:text-white overflow-hidden select-none touch-none pt-[env(safe-area-inset-top,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]"
-      style={{ filter: cbEnabled ? 'url(#cb-matrix)' : 'none' }}
     >
-      {/* Live SVG Matrix for Colorblindness Adjustments */}
-      <svg className="hidden" style={{ display: 'none' }} aria-hidden="true">
-        <defs>
-          <filter id="cb-matrix">
-            <feColorMatrix type="matrix" values={getInterpolatedMatrix(cbType, cbStrength)} />
-          </filter>
-        </defs>
-      </svg>
-
       <canvas ref={canvasRef} className="fixed inset-0 pointer-events-none z-50" aria-hidden="true" />
 
       {toast && (
@@ -876,7 +876,7 @@ export default function App() {
               {gameStatus === 'won' && !isSpinningWin ? (
                 <div
                   className="w-full h-full transition-colors duration-500"
-                  style={{ backgroundColor: targetSolidHex }}
+                  style={{ backgroundColor: simColor(targetSolidHex) }}
                 />
               ) : (
                 <svg className="w-full h-full" viewBox="0 0 200 200" aria-label="Target color and your current mix">
@@ -893,7 +893,7 @@ export default function App() {
                   <g clipPath="url(#rightHalfClip)">
                     <path
                       d="M 100 10 A 90 90 0 0 1 100 190 Z"
-                      fill={pieRightFillHex}
+                      fill={simColor(pieRightFillHex)}
                       stroke="#12131C"
                       strokeWidth="2.5"
                     />
@@ -923,7 +923,7 @@ export default function App() {
                       <div
                         key={i}
                         className="w-6 h-6 rounded-md border border-white/40 shadow-sm flex items-center justify-center text-[9px] font-bold text-white"
-                        style={{ backgroundColor: PALETTE_MAP[id]?.hex }}
+                        style={{ backgroundColor: PALETTE_MAP[id] ? simColor(PALETTE_MAP[id].hex) : undefined }}
                         title={PALETTE_MAP[id]?.name + ' (' + Math.round(targetWeights[i] * 100) + '%)'}
                       >
                         {splitMode === 'uneven' && Math.round(targetWeights[i] * 100) + '%'}
@@ -941,24 +941,24 @@ export default function App() {
                   <button
                     onClick={() => {
                       triggerHaptic('tap', hapticEnabled);
-                      setInspectMode('mode1');
-                    }}
-                    className={'px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-bold transition ' + (
-                      inspectMode === 'mode1' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
-                    )}
-                  >
-                    Target / Slices
-                  </button>
-                  <button
-                    onClick={() => {
-                      triggerHaptic('tap', hapticEnabled);
                       setInspectMode('mode2');
                     }}
                     className={'px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-bold transition ' + (
                       inspectMode === 'mode2' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                     )}
                   >
-                    Target / Blend
+                    Blend / Target
+                  </button>
+                  <button
+                    onClick={() => {
+                      triggerHaptic('tap', hapticEnabled);
+                      setInspectMode('mode1');
+                    }}
+                    className={'px-1.5 py-0.5 rounded-lg text-[9px] sm:text-[10px] font-bold transition ' + (
+                      inspectMode === 'mode1' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
+                    )}
+                  >
+                    Slices / Target
                   </button>
                   <button
                     onClick={() => {
@@ -969,7 +969,7 @@ export default function App() {
                       inspectMode === 'mode3' ? 'bg-purple-600 text-white shadow' : 'text-slate-400 hover:text-slate-200'
                     )}
                   >
-                    Blend / Slices
+                    Slices / Blend
                   </button>
                 </div>
 
@@ -1017,7 +1017,7 @@ export default function App() {
               const isInspected = inspectingGuessIndex === rowIndex;
 
               const guessMixedHex = guess ? blendColorsWeighted(guess.recipe, targetWeights) : null;
-              const badgeTextColor = guessMixedHex ? getContrastTextColor(guessMixedHex) : 'text-slate-600';
+              const badgeTextColor = guessMixedHex ? getContrastTextColor(simColor(guessMixedHex)) : 'text-slate-600';
 
               return (
                 <div
@@ -1044,11 +1044,14 @@ export default function App() {
                       }
 
                       let borderStyle = 'border-slate-700/80 bg-slate-800/40';
+                      let borderHex = null;
                       if (wordleMode && tileStatus === 'correct') {
+                        borderHex = cbHighContrast ? '#3B82F6' : '#10B981';
                         borderStyle = cbHighContrast
                           ? 'border-blue-500 border-4 shadow-[0_0_12px_rgba(59,130,246,0.8)]'
                           : 'border-emerald-500 border-4 shadow-[0_0_12px_rgba(16,185,129,0.8)]';
                       } else if (wordleMode && tileStatus === 'present') {
+                        borderHex = cbHighContrast ? '#F97316' : '#FACC15';
                         borderStyle = cbHighContrast
                           ? 'border-orange-500 border-4 shadow-[0_0_12px_rgba(249,115,22,0.8)]'
                           : 'border-amber-400 border-4 shadow-[0_0_12px_rgba(251,191,36,0.8)]';
@@ -1071,7 +1074,10 @@ export default function App() {
                           className={'w-9 h-9 sm:w-11 sm:h-11 rounded-lg flex flex-col items-center justify-center relative transition-all duration-200 transform ' + borderStyle + ' ' + (
                             isCurrentRow && currentGuess[colIndex] ? 'cursor-pointer hover:scale-105 active:scale-95' : ''
                           )}
-                          style={{ backgroundColor: tileColor ? tileColor.hex : undefined }}
+                          style={{
+                            backgroundColor: tileColor ? simColor(tileColor.hex) : undefined,
+                            borderColor: borderHex ? simColor(borderHex) : undefined
+                          }}
                           title={tileColor ? tileColor.name : 'Slot ' + (colIndex + 1)}
                         >
                           {!tileColor && (
@@ -1079,7 +1085,7 @@ export default function App() {
                           )}
 
                           {tileColor && cbColorNames && (
-                            <span className={'text-[8px] font-black uppercase leading-none drop-shadow ' + getContrastTextColor(tileColor.hex)}>
+                            <span className={'text-[8px] font-black uppercase leading-none drop-shadow ' + getContrastTextColor(simColor(tileColor.hex))}>
                               {tileColor.code}
                             </span>
                           )}
@@ -1105,7 +1111,7 @@ export default function App() {
                         className={'w-10 h-10 sm:w-11 sm:h-11 rounded-full text-[11px] flex items-center justify-center transition-all shadow-lg border-2 hover:scale-110 active:scale-95 ' + (
                           isInspected ? 'border-purple-300 ring-2 ring-purple-400' : 'border-slate-700/80'
                         ) + ' ' + badgeTextColor}
-                        style={{ backgroundColor: guessMixedHex }}
+                        style={{ backgroundColor: guessMixedHex ? simColor(guessMixedHex) : undefined }}
                         title="Tap to compare side-by-side!"
                       >
                         {guess.accuracy.toFixed(1) + '%'}
@@ -1173,24 +1179,26 @@ export default function App() {
           {/* COLOR KEYBOARD PALETTE (Flex Wrap Centered) */}
           <div className="w-full flex flex-col gap-1 shrink-0">
             <div className="flex flex-wrap justify-center gap-1.5 bg-slate-900/90 pt-1.5 px-1.5 pb-[max(env(safe-area-inset-bottom),6px)] rounded-2xl border border-slate-800 shadow-inner">
-              {activePalette.map((color, palIdx) => {
+              {activePalette.map((color) => {
                 const status = wordleMode ? keyboardStatuses[color.id] : null;
                 const isAbsent = status === 'absent';
 
                 let badgeStyle = 'border-slate-600/90';
+                let borderHex = null;
                 if (wordleMode && status === 'correct') {
+                  borderHex = cbHighContrast ? '#3B82F6' : '#10B981';
                   badgeStyle = cbHighContrast
                     ? 'border-blue-500 border-2 shadow-[0_0_12px_rgba(59,130,246,0.5)]'
                     : 'border-emerald-500 border-2 shadow-[0_0_12px_rgba(16,185,129,0.5)]';
                 } else if (wordleMode && status === 'present') {
+                  borderHex = cbHighContrast ? '#F97316' : '#FACC15';
                   badgeStyle = cbHighContrast
                     ? 'border-orange-500 border-2 shadow-[0_0_12px_rgba(249,115,22,0.5)]'
                     : 'border-amber-400 border-2 shadow-[0_0_12px_rgba(251,191,36,0.5)]';
                 } else if (isAbsent) {
+                  borderHex = '#EF4444';
                   badgeStyle = 'border-red-500 border-[3px] shadow-[0_0_12px_rgba(239,68,68,0.6)] opacity-60 grayscale-[40%]';
                 }
-
-                const keyLabel = palIdx < 10 ? String((palIdx + 1) % 10) : null;
 
                 return (
                   <button
@@ -1200,19 +1208,16 @@ export default function App() {
                     className={'w-8 h-8 sm:w-10 sm:h-10 shrink-0 rounded-lg flex flex-col items-center justify-center relative overflow-hidden transition-all duration-150 transform active:scale-90 shadow-sm border ' + (
                       isAbsent ? 'cursor-not-allowed' : 'hover:scale-105 hover:border-slate-300'
                     ) + ' ' + badgeStyle}
-                    style={{ backgroundColor: color.hex }}
-                    title={color.name + (keyLabel ? ` (key: ${keyLabel})` : '')}
+                    style={{
+                      backgroundColor: simColor(color.hex),
+                      borderColor: borderHex ? simColor(borderHex) : undefined
+                    }}
+                    title={color.name}
                     aria-label={color.name}
                   >
                     {cbColorNames && (
-                      <span className={'text-[7px] sm:text-[8px] font-black uppercase leading-none drop-shadow ' + getContrastTextColor(color.hex)}>
+                      <span className={'text-[7px] sm:text-[8px] font-black uppercase leading-none drop-shadow ' + getContrastTextColor(simColor(color.hex))}>
                         {color.code}
-                      </span>
-                    )}
-
-                    {keyLabel && !cbColorNames && (
-                      <span className="key-hint absolute bottom-0 right-0 w-3 h-3 items-center justify-center text-[7px] font-black bg-black/45 rounded-tl-md text-white/90 leading-none">
-                        {keyLabel}
                       </span>
                     )}
 
@@ -1306,7 +1311,7 @@ export default function App() {
               <p>A perfect match needs the <strong>exact same recipe</strong> — visually identical blends from different colors score a maximum of 99.9%.</p>
 
               <div className="p-2.5 bg-slate-800/60 rounded-xl border border-slate-700 text-[10px] text-slate-400">
-                <strong className="text-slate-300">Keyboard (desktop):</strong> number keys pick palette colors, <kbd className="px-1 bg-slate-700 rounded">Enter</kbd> submits, <kbd className="px-1 bg-slate-700 rounded">Backspace</kbd> deletes, <kbd className="px-1 bg-slate-700 rounded">Esc</kbd> closes dialogs.
+                <strong className="text-slate-300">Keyboard (desktop):</strong> <kbd className="px-1 bg-slate-700 rounded">Enter</kbd> submits, <kbd className="px-1 bg-slate-700 rounded">Backspace</kbd> deletes, <kbd className="px-1 bg-slate-700 rounded">Esc</kbd> closes dialogs.
               </div>
 
               <p>Reach <strong>100% Accuracy</strong> to solve the puzzle!</p>

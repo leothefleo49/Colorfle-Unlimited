@@ -28,7 +28,8 @@ import {
   makeConfigKey,
   getContrastTextColor,
   CB_TYPES,
-  getInterpolatedMatrix
+  getInterpolatedMatrix,
+  applyCbMatrix
 } from './game.js';
 
 // ---- palette ----
@@ -253,4 +254,16 @@ test('cb matrix interpolation hits identity at 0 and base at 1', () => {
   z.forEach((v, i) => assert.ok(Math.abs(v - [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0][i]) < 1e-9));
   one.forEach((v, i) => assert.ok(Math.abs(v - [0.625, 0.375, 0, 0, 0, 0.7, 0.3, 0, 0, 0, 0, 0.3, 0.7, 0, 0, 0, 0, 0, 1, 0][i]) < 1e-9));
   assert.ok(CB_TYPES.includes('achromatopsia'));
+});
+
+test('applyCbMatrix transforms colors and respects identity/zero strength', () => {
+  assert.equal(applyCbMatrix('#3366CC', 'deuteranopia', 0), '#3366CC');
+  assert.equal(applyCbMatrix('#3366CC', null, 0.5), '#3366CC');
+  // full-strength deutan on pure red: rows give (0.625, 0.7, 0.3)·255 for R,G,B
+  const full = applyCbMatrix('#FF0000', 'deuteranopia', 1);
+  const expect = '#' + [0.625 * 255, 0.7 * 255, 0 * 0.3 + 0 * 0.7].map((n) => Math.round(n).toString(16).padStart(2, '0')).join('');
+  assert.equal(full.toUpperCase(), expect.toUpperCase());
+  // output stays in gamut for extreme inputs
+  const extreme = applyCbMatrix('#FFFFFF', 'protanopia', 1);
+  assert.match(extreme, /^#[0-9A-Fa-f]{6}$/);
 });
