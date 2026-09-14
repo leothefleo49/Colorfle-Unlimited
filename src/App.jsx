@@ -12,6 +12,7 @@ import {
   formatDuration,
   getInterpolatedMatrix,
   getContrastTextColor,
+  normalizeProfile,
   parseProfileJson,
   encodeProfileB64,
   decodeProfileB64,
@@ -334,7 +335,7 @@ export default function App() {
       if (profile) {
         setCbType(profile.type);
         setCbStrength(profile.strength);
-        setCbEnabled(true);
+        setCbEnabled(profile.strength > 0);
         showToast('ChromaSight profile applied — ' + profile.type + ' @ ' + Math.round(profile.strength * 100) + '%');
       } else {
         showToast('Invalid profile link');
@@ -344,6 +345,41 @@ export default function App() {
     window.addEventListener('hashchange', applyHashProfile);
     return () => window.removeEventListener('hashchange', applyHashProfile);
   }, []);
+
+  // Live profile handoff: a ChromaSight tab opened from this page can send
+  // the measured profile straight back here (postMessage), no reload needed
+  useEffect(() => {
+    const onMessage = (e) => {
+      const okOrigin =
+        e.origin === CHROMASIGHT_URL ||
+        /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(e.origin);
+      if (!okOrigin || !e.data || e.data.type !== 'chromasight-profile') return;
+      const profile = normalizeProfile(e.data.profile);
+      if (!profile) return;
+      setCbType(profile.type);
+      setCbStrength(profile.strength);
+      setCbEnabled(profile.strength > 0);
+      showToast('ChromaSight profile applied — ' + profile.type + ' @ ' + Math.round(profile.strength * 100) + '%');
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  // Open the ChromaSight test. Inside the installed (standalone) app the
+  // whole round trip stays in this window: navigate out to the test, and
+  // its "Send to Colorfle" navigates back with the profile. In a normal
+  // browser tab we open a new tab that live-messages the profile back.
+  const openChromaSight = () => {
+    const url = CHROMASIGHT_URL + '?from=colorfle';
+    const standalone =
+      (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) ||
+      window.navigator.standalone === true;
+    if (standalone) {
+      window.location.href = url;
+    } else {
+      window.open(url, '_blank');
+    }
+  };
 
   // Countdown tick for the daily banner
   useEffect(() => {
@@ -1511,10 +1547,14 @@ export default function App() {
 
                   <div className="text-[10px] text-slate-400 mt-2 p-2 bg-slate-900/50 rounded-lg border border-slate-700/50">
                     For a precise, science-based measurement of your type and severity, take the{' '}
-                    <a href={CHROMASIGHT_URL + '?from=colorfle'} target="_blank" rel="noreferrer" className="text-purple-400 underline font-bold">
+                    <button
+                      onClick={openChromaSight}
+                      className="text-purple-400 underline font-bold hover:text-purple-300"
+                    >
                       ChromaSight adaptive test
-                    </a>
-                    . It can send your profile straight back here — or paste it below.
+                    </button>
+                    . When you open it from the installed app, the test and your profile round-trip in this
+                    same window. Or paste a profile below.
 
                     <div className="mt-3 flex flex-col gap-1.5 border-t border-slate-700/50 pt-2">
                       <div className="flex items-center justify-between gap-2">
