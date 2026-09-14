@@ -7,6 +7,14 @@ body {
   overscroll-behavior: none;
 }
 
+/* fill the iOS standalone (home-screen) window completely — no bottom gap */
+html,
+body,
+#root {
+  height: 100%;
+  background-color: #12131c;
+}
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-5px); }
@@ -32,6 +40,10 @@ body {
 
 /* Smooth slice fills on the pie wheel */
 .pie-slice { transition: fill 0.2s ease; }
+
+/* Win sequence: slices blend into the target color over ~2s while the
+   wheel spins — gradual, eased, satisfying */
+.pie-slice-win { transition: fill 1900ms cubic-bezier(0.45, 0, 0.2, 1); }
 
 /* Physical-keyboard digit hints: only shown on precise pointers (desktop) */
 .key-hint { display: none; }

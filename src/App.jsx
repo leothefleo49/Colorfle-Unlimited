@@ -175,6 +175,8 @@ export default function App() {
   const [shakeRow, setShakeRow] = useState(false);
   const [toast, setToast] = useState(null); // { id, msg }
   const [isSpinningWin, setIsSpinningWin] = useState(false);
+  const [winMerging, setWinMerging] = useState(false);
+  const winTimeoutRef = useRef(null);
   const [nowTick, setNowTick] = useState(Date.now());
 
   const [inspectingGuessIndex, setInspectingGuessIndex] = useState(null);
@@ -257,6 +259,8 @@ export default function App() {
     setCurrentGuess([]);
     setGameStatus('playing');
     setIsSpinningWin(false);
+    setWinMerging(false);
+    if (winTimeoutRef.current) clearTimeout(winTimeoutRef.current);
     setInspectingGuessIndex(null);
   }, [colorCount, splitMode, allowDuplicates, gameMode, dailySeedStr, activePalette]);
 
@@ -444,12 +448,21 @@ export default function App() {
 
     if (accuracy === 100.0) {
       setGameStatus('won');
+      // Win sequence: the wheel spins while the winning slices blend into
+      // the target color (~2s), then the answer reveal + confetti fire.
       setIsSpinningWin(true);
+      setWinMerging(true);
       playSoundEffect('win', soundEnabled);
       triggerHaptic('win', hapticEnabled);
-      triggerConfetti();
       updateStats(true, newGuesses.length, accuracy);
       showToast('Perfect 100% Match!');
+      if (winTimeoutRef.current) clearTimeout(winTimeoutRef.current);
+      winTimeoutRef.current = setTimeout(() => {
+        winTimeoutRef.current = null;
+        setWinMerging(false);
+        setIsSpinningWin(false);
+        triggerConfetti();
+      }, 2000);
     } else if (newGuesses.length >= (maxAttempts === '∞' ? 999999 : maxAttempts)) {
       setGameStatus('lost');
       playSoundEffect('error', soundEnabled);
@@ -661,6 +674,7 @@ export default function App() {
     const center = 100;
     const radius = 90;
     let currentAngleDeg = 270;
+    const winning = winMerging && gameStatus === 'won';
 
     return targetWeights.map((weight, idx) => {
       const sliceDeg = weight * 180;
@@ -680,18 +694,20 @@ export default function App() {
 
       const selectedColorId = activeLeftRecipe[idx];
       const colorObj = selectedColorId ? PALETTE_MAP[selectedColorId] : null;
-      const fillColor = colorObj ? colorObj.hex : '#222533';
+      // during the win sequence the slices glide into the blended target
+      // color, merging the guess with the answer into one smooth disc
+      const fillColor = winning ? targetSolidHex : (colorObj ? colorObj.hex : '#222533');
 
       return (
         <path
           key={idx}
           d={d}
-          fill={fillColor}
+          style={{ fill: fillColor }}
           stroke="#12131C"
           strokeWidth="2.5"
-          className="pie-slice"
+          className={winning ? 'pie-slice-win' : 'pie-slice'}
         >
-          {colorObj && <title>{colorObj.name + ' (' + Math.round(weight * 100) + '%)'}</title>}
+          {colorObj && !winning && <title>{colorObj.name + ' (' + Math.round(weight * 100) + '%)'}</title>}
         </path>
       );
     });
@@ -732,7 +748,7 @@ export default function App() {
 
   return (
     <div
-      className="fixed inset-0 w-full h-full bg-[#12131C] text-slate-100 flex flex-col justify-between font-sans selection:bg-purple-500 selection:text-white overflow-hidden select-none touch-none pt-[env(safe-area-inset-top,0px)] pb-[env(safe-area-inset-bottom,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]"
+      className="fixed inset-0 w-full h-full bg-[#12131C] text-slate-100 flex flex-col justify-between font-sans selection:bg-purple-500 selection:text-white overflow-hidden select-none touch-none pt-[env(safe-area-inset-top,0px)] pl-[env(safe-area-inset-left,0px)] pr-[env(safe-area-inset-right,0px)]"
       style={{ filter: cbEnabled ? 'url(#cb-matrix)' : 'none' }}
     >
       {/* Live SVG Matrix for Colorblindness Adjustments */}
@@ -851,11 +867,13 @@ export default function App() {
         <div className="flex flex-col items-center justify-center gap-1 landscape:w-5/12 lg:w-1/2 shrink-0 h-auto landscape:h-full lg:h-full">
           <div className="p-2 sm:p-4 rounded-3xl bg-slate-900/60 border border-slate-800/80 shadow-2xl backdrop-blur-md flex flex-col items-center max-h-full">
             <div
-              className={'w-32 h-32 sm:w-48 sm:h-48 landscape:w-[38vh] landscape:h-[38vh] lg:w-[28vw] lg:h-[28vw] max-w-[45vh] max-h-[45vh] rounded-full border-4 border-slate-700/80 shadow-2xl relative overflow-hidden transition-all duration-700 transform ' + (
-                isSpinningWin ? 'rotate-[720deg] scale-105 border-emerald-400 shadow-[0_0_35px_rgba(52,211,153,0.6)]' : ''
+              className={'w-32 h-32 sm:w-48 sm:h-48 landscape:w-[38vh] landscape:h-[38vh] lg:w-[28vw] lg:h-[28vw] max-w-[45vh] max-h-[45vh] rounded-full border-4 border-slate-700/80 shadow-2xl relative overflow-hidden transition-all transform ' + (
+                isSpinningWin
+                  ? 'duration-[1900ms] ease-out rotate-[1080deg] scale-[1.06] border-emerald-400 shadow-[0_0_35px_rgba(52,211,153,0.6)]'
+                  : 'duration-700'
               )}
             >
-              {gameStatus === 'won' ? (
+              {gameStatus === 'won' && !isSpinningWin ? (
                 <div
                   className="w-full h-full transition-colors duration-500"
                   style={{ backgroundColor: targetSolidHex }}
@@ -890,7 +908,15 @@ export default function App() {
 
               {/* Target Recipe Revealed Overlay on Game Over */}
               {gameStatus !== 'playing' && !isSpinningWin && (
-                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-2">
+                <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center p-2 animate-fade-in">
+                  {gameStatus === 'won' && (
+                    <span className="text-[11px] font-black text-emerald-400 uppercase tracking-wider flex items-center gap-1 mb-0.5">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Solved — exact recipe!
+                    </span>
+                  )}
                   <span className="text-[11px] font-bold text-slate-300 uppercase">Target Mix</span>
                   <div className="flex gap-1 justify-center mt-1.5">
                     {targetRecipe.map((id, i) => (
@@ -1121,8 +1147,8 @@ export default function App() {
                   className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs shadow-lg transition transform hover:scale-105 active:scale-95 flex items-center gap-1"
                   title="Share your result"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.684 13.342C8.886 12.538 9 11.719 9 11c0-5.25-2.125-9-3.5-9S2 5.75 2 11s2.125 9 3.5 9c.72 0 1.571-.59 2.3-1.573M22 11c0 5.25-2.125 9-3.5 9s-3.5-3.75-3.5-9 2.125-9 3.5-9 3.5 3.75 3.5 9zM11 6.5l8 5M19 6.5l-8 5" />
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" strokeWidth="2" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186 9.566-5.314m-9.566 7.5 9.566 5.314m0 0a2.25 2.25 0 1 0 3.935 2.186 2.25 2.25 0 0 0-3.935-2.186Zm0-12.814a2.25 2.25 0 1 0 3.933-2.185 2.25 2.25 0 0 0-3.933 2.185Z" />
                   </svg>
                   <span>Share</span>
                 </button>
@@ -1146,7 +1172,7 @@ export default function App() {
 
           {/* COLOR KEYBOARD PALETTE (Flex Wrap Centered) */}
           <div className="w-full flex flex-col gap-1 shrink-0">
-            <div className="flex flex-wrap justify-center gap-1.5 bg-slate-900/90 p-1.5 rounded-2xl border border-slate-800 shadow-inner">
+            <div className="flex flex-wrap justify-center gap-1.5 bg-slate-900/90 pt-1.5 px-1.5 pb-[max(env(safe-area-inset-bottom),6px)] rounded-2xl border border-slate-800 shadow-inner">
               {activePalette.map((color, palIdx) => {
                 const status = wordleMode ? keyboardStatuses[color.id] : null;
                 const isAbsent = status === 'absent';
